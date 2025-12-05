@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configuratore Nastro - Alpine Edition</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        .wizard-step { border: 1px solid #ccc; padding: 20px; margin-top: 15px; }
+        
+        .option-button, .material-button { 
+            cursor: pointer; display: inline-block; margin: 5px; 
+            border: 1px solid #ccc; padding: 10px 15px; 
+            background-color: #f9f9f9; transition: all 0.2s; 
+        }
+        /* Classi dinamiche gestite da Alpine */
+        .selected { border-color: #007bff; box-shadow: 0 0 0 2px #007bff; background-color: #e3f2fd; }
+        
+        .material-button { font-weight: bold; min-width: 120px; text-align: center; }
+
+        #preview-3d { width: 100%; height: 450px; border: 1px solid #444; margin-top: 20px; background: #222; position: relative; }
+        #loading-msg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #ddd; background: rgba(0,0,0,0.7); padding: 10px 20px; border-radius: 8px; display: none; }
+        
+        .price-box { padding: 10px; background: #e8f5e9; border: 1px solid #4caf50; margin-top: 10px; font-weight: bold; }
+        #editor-canvas { border: 1px solid #ccc; }
+        
+        [x-cloak] { display: none !important; }
+    </style>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <div x-data="tapeConfigurator" x-cloak>
+
+        <h1>Tape 3d config - Alpine JS + Fabric JS + Three JS</h1>
+
+        <div id="preview-3d">
+            <div id="loading-msg">Caricamento HDRI e Modello...</div>
+        </div>
+        
+        <div class="price-box">
+            Prezzo: <span x-text="priceDisplay"></span>
+        </div>
+
+        <div class="wizard-step" x-show="step === 1" x-transition>  
+            <h2>1. Caratteristiche</h2>
+            
+            <p><strong>Larghezza:</strong></p>
+            <div>
+                <template x-for="w in currentModel.widths" :key="w">
+                    <span class="option-button" 
+                          :class="{ 'selected': config.width === w }"
+                          x-text="w + ' mm'"
+                          @click="selectWidth(w)"></span>
+                </template>
+            </div>
+
+            <p><strong>Lunghezza:</strong></p>
+            <div>
+                <template x-for="l in currentModel.lengths" :key="l">
+                    <span class="option-button" 
+                          :class="{ 'selected': config.length === l }"
+                          x-text="l + ' m'"
+                          @click="config.length = l"></span>
+                </template>
+            </div>
+
+            <p><strong>Materiale di Base:</strong></p>
+            <div>
+                <template x-for="mat in currentModel.materials" :key="mat.id">
+                    <span class="material-button"
+                          :class="{ 'selected': config.materialId === mat.id }"
+                          :style="{ borderLeft: '5px solid ' + mat.previewColor }"
+                          x-text="mat.name"
+                          @click="config.materialId = mat.id"></span>
+                </template>
+            </div>
+            
+            <br>
+            <button @click="goToStep(2)">Avanti a Personalizzazione</button>
+        </div>
+
+        <div class="wizard-step" x-show="step === 2" x-transition>
+            <h2>2. Personalizza</h2>
+            <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+                
+                <div style="width: 300px;">
+                    <h3>Testo</h3>
+                    <input type="text" x-model="editor.text" placeholder="Inserisci Testo" style="width:100%; padding:8px; margin-bottom:5px;">
+                    
+                    <div style="display: flex; gap: 5px; margin-bottom: 10px;">
+                        <select x-model="editor.font" @change="updateFont()" style="flex-grow: 1; padding: 8px;">
+                            <option value="Arial">Arial</option>
+                            <option value="Verdana">Verdana</option>
+                            <option value="Helvetica">Helvetica</option>
+                            <option value="Times New Roman">Times New Roman</option>
+                            <option value="Courier New">Courier New</option>
+                            <option value="Impact">Impact</option>
+                        </select>
+                        <input type="color" x-model="editor.color" style="height: 35px; width: 40px;">
+                    </div>
+                    
+                    <button @click="addTextToCanvas()" style="width:100%; padding:10px; margin-bottom: 15px;">Aggiungi Testo</button>
+                    
+                    <hr>
+                    
+                    <h3>Logo / Immagine</h3>
+                    <input type="file" accept="image/*" @change="handleImageUpload($event)" style="margin-bottom: 10px;">
+                    <p style="font-size: small; color: #666;">Trascina gli angoli per ridimensionare.</p>
+
+                    <hr>
+                    
+                    <button @click="deleteSelected()" style="width:100%; padding:10px; background-color: #d9534f; color: white; border: 1px solid #d43f3a; cursor: pointer; margin-bottom: 15px;">
+                        🗑️ Elimina Elemento Selezionato
+                    </button>
+                </div>
+
+                <div style="flex-grow: 1;">
+                    <p>Area Modificabile:</p>
+                    <canvas id="editor-canvas"></canvas>
+                </div>
+            </div>
+            <br>
+            <button @click="goToStep(1)">Indietro</button>
+            <button @click="alert('Configurazione Completata! Prezzo: ' + priceDisplay)">Aggiungi al Carrello</button>
+        </div>
+
+    </div>
+
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>
